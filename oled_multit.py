@@ -177,7 +177,7 @@ class screenctl(threading.Thread):
 				else:
 					#Stats Mode
 						font = ImageFont.load_default()
-						draw.text((x, top),	"BTC/USD:",  font=font, fill=255)
+						draw.text((x, top),	"USD/BTC:",  font=font, fill=255)
 						st = datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%y %H:%M:%S')
 						ont = ImageFont.truetype('vcr.ttf', 2)
 						draw.text((x, top+51),	str(st),  font=font, fill=255)
