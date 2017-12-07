@@ -92,7 +92,6 @@ x = 0
 
 # Load default font.
 font = ImageFont.load_default()
-font2 = ImageFont.truetype('vcr.ttf', 35)
 font35 = ImageFont.truetype('vcr.ttf', 35)
 
 #Variables cause 2 unsynchroned threads
@@ -181,14 +180,14 @@ class screenctl(threading.Thread):
 						font = ImageFont.load_default()
 						draw.text((x, top),	"USD/BTC:",  font=font, fill=255)
 						st = datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%y %H:%M:%S')
-						draw.text((x, top+51),	str(st),  font=font2, fill=255)
+						draw.text((x, top+51),	str(st),  font=font, fill=255)
 						draw.text((x, top+16),	str(BTC),  font=font35, fill=255)
 						font = ImageFont.load_default()
 			
 						
 						disp.image(image.rotate(180)) #rotated 180
 						disp.display()
-						time.sleep(0.5)
+						time.sleep(1)
 		except KeyboardInterrupt: 
 			GPIO.cleanup()
 a = varupdate("varupdate")
