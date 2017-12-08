@@ -1,3 +1,11 @@
+# Some comments on first row.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
 
 import psutil, sys,threading
 import time,datetime
@@ -76,7 +84,7 @@ font35 = ImageFont.truetype('vcr.ttf', 35)
 
 #Variables cause 2 unsynchroned threads
 flip = "0"
-mode = 1
+mode = 0
 BTC = ""
 IP = ""
 CPU = ""
@@ -89,7 +97,9 @@ class varupdate(threading.Thread):
 	def __init__(self, name):
 		threading.Thread.__init__(self)
 		self.name = name
-
+	def stop(self):
+		return
+		self._stop_event.set()
 	def run(self):
 		global flip
 		global mode	 
@@ -100,6 +110,8 @@ class varupdate(threading.Thread):
 		global Disk
 		global timer
 		while True:
+			if not GPIO.input(D_pin):
+				break
 			if mode ==1:
 				c.acquire()
 				cmd = "hostname -I | cut -d\' \' -f1"
@@ -111,8 +123,7 @@ class varupdate(threading.Thread):
 				cmd = "df -h | awk '$NF==\"/\"{printf \"Disk: %d/%dGB %s\", $3,$2,$5}'"
 				Disk = subprocess.check_output(cmd, shell = True )
 				url = "http://api.coindesk.com/v1/bpi/currentprice.json"
-				BTC = int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float'])
-
+				BTC = '{0:,}'.format( int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float']) )
 				c.release()
 				timer=30
 				time.sleep(30)
@@ -130,7 +141,9 @@ class screenctl(threading.Thread):
 	def __init__(self, name):
 		threading.Thread.__init__(self)
 		self.name = name
-
+	def stop(self):
+		self._stop_event.set()
+		return
 	def run(self):
 		global flip
 		global mode	 
@@ -139,18 +152,17 @@ class screenctl(threading.Thread):
 		try:
 			while True:
 				c.acquire()
-				
-
 				# Draw a black filled box to clear the image.
 				draw.rectangle((0,0,width,height), outline=0, fill=0)
-				if GPIO.input(A_pin): # button is released
+				if not GPIO.input(D_pin):
+					break
+				if GPIO.input(U_pin): # button is released
 					mode = mode
 				else: # button is pressed:
 					if mode == 0:
 						mode = 1
 					else:
 						mode = 0
-
 				if mode == 1:
 					#Stats Mode
 					font = ImageFont.load_default()
@@ -165,8 +177,6 @@ class screenctl(threading.Thread):
 					draw.text((x, top+48),	"USD\BTC: "+ str(BTC),  font=font, fill=255)
 					draw.text((x+110, top+55),	str(timer),  font=font, fill=255)
 					timer = timer - 1
-
-
 					disp.image(image.rotate(180)) #rotated 180
 					disp.display()
 					time.sleep(1)
@@ -186,12 +196,28 @@ class screenctl(threading.Thread):
 					c.release()
 		except KeyboardInterrupt: 
 			GPIO.cleanup()
+			
 a = varupdate("varupdate")
 b = screenctl("screenctl")
-
+#a = reqthread()
+#b = reqthread()
+b.daemon = True
+a.daemon = True
 b.start()
 a.start()
 
 a.join()
 b.join()
-					
+while True:
+	try:
+	#Keep main thread from exiting, trying to exit threads correctly...
+		time.sleep(1)
+		print "sleepin"
+	except (KeyboardInterrupt, SystemExit):
+		print "Bye..."
+		a.terminate()
+		b.terminate()
+		a.join()
+		b.join()
+		
+		time.sleep(1)
