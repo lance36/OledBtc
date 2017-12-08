@@ -13,6 +13,8 @@ import Adafruit_GPIO.SPI as SPI
 import RPi.GPIO as GPIO
 import Adafruit_SSD1306
 import json, urllib
+import os
+import netifaces as ni
 
 from PIL import Image
 from PIL import ImageDraw
@@ -114,8 +116,9 @@ class varupdate(threading.Thread):
 		while True:
 			if mode ==1:
 				c.acquire()
-				cmd = "hostname -I | cut -d\' \' -f1"
-				IP = subprocess.check_output(cmd, shell = True )
+				#cmd = "hostname -I | cut -d\' \' -f1"
+				#IP = subprocess.check_output(cmd, shell = True )
+				IP = ni.ifaddresses('wlan0')[ni.AF_INET][0]['addr']
 				CPU = "Cpu: " + str(psutil.cpu_percent()) + "% "
 				Mem = psutil.virtual_memory() 
 				MemUsage = "Mem: "  + str(Mem.used >> 20) + "/" + str(Mem.total >> 20) + " " + str(Mem.percent) + "%"
