@@ -91,6 +91,7 @@ CPU = ""
 MemUsage = ""
 Disk = ""
 timer = 27 # on my system atleast?
+kill = 0
 
 class varupdate(threading.Thread):
 	#Thread to update variables every 30 seconds
@@ -109,6 +110,7 @@ class varupdate(threading.Thread):
 		global MemUsage
 		global Disk
 		global timer
+		global kill
 		while True:
 			if not GPIO.input(D_pin):
 				break
@@ -124,16 +126,27 @@ class varupdate(threading.Thread):
 				Disk = subprocess.check_output(cmd, shell = True )
 				url = "http://api.coindesk.com/v1/bpi/currentprice.json"
 				BTC = '{0:,}'.format( int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float']) )
-				c.release()
+
 				timer=30
-				time.sleep(30)
+				for i in range(10):
+					sleep(1)
+					if kill == 1:
+						c.release()
+						return
+				c.release()
 			else:
 				url = "http://api.coindesk.com/v1/bpi/currentprice.json"
 				c.acquire()
 				BTC = int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float'])
-				c.release()
+				
 				timer=30
-				time.sleep(30)
+				for i in range(10):
+					time.sleep(1)
+					if kill == 1:
+						c.release()
+						return
+				c.release()
+
 
 
 class screenctl(threading.Thread):
@@ -149,6 +162,7 @@ class screenctl(threading.Thread):
 		global mode	 
 		global BTC
 		global timer
+		global kill
 		try:
 			while True:
 				c.acquire()
@@ -179,6 +193,9 @@ class screenctl(threading.Thread):
 					timer = timer - 1
 					disp.image(image.rotate(180)) #rotated 180
 					disp.display()
+					if kill == 1:
+						c.release()
+						return
 					time.sleep(1)
 					c.release()
 				else:
@@ -192,6 +209,9 @@ class screenctl(threading.Thread):
 					timer = timer - 1
 					disp.image(image.rotate(180)) #rotated 180
 					disp.display()
+					if kill == 1:
+						c.release()
+						return
 					time.sleep(1)
 					c.release()
 		except KeyboardInterrupt: 
@@ -201,13 +221,11 @@ a = varupdate("varupdate")
 b = screenctl("screenctl")
 #a = reqthread()
 #b = reqthread()
-b.daemon = True
-a.daemon = True
+# b.daemon = True
+# a.daemon = True
 b.start()
 a.start()
 
-a.join()
-b.join()
 while True:
 	try:
 	#Keep main thread from exiting, trying to exit threads correctly...
@@ -215,9 +233,7 @@ while True:
 		print "sleepin"
 	except (KeyboardInterrupt, SystemExit):
 		print "Bye..."
-		a.terminate()
-		b.terminate()
+		kill = 1
 		a.join()
 		b.join()
-		
-		time.sleep(1)
+		break
