@@ -112,13 +112,10 @@ class varupdate(threading.Thread):
 		global timer
 		global kill
 		while True:
-			if not GPIO.input(D_pin):
-				break
 			if mode ==1:
 				c.acquire()
 				cmd = "hostname -I | cut -d\' \' -f1"
 				IP = subprocess.check_output(cmd, shell = True )
-				cmd = "top -bn1 | grep load | awk '{printf \"CPU Load: %.2f\", $(NF-2)}'"
 				CPU = "Cpu: " + str(psutil.cpu_percent()) + "% "
 				Mem = psutil.virtual_memory() 
 				MemUsage = "Mem: "  + str(Mem.used >> 20) + "/" + str(Mem.total >> 20) + " " + str(Mem.percent) + "%"
@@ -126,28 +123,24 @@ class varupdate(threading.Thread):
 				Disk = subprocess.check_output(cmd, shell = True )
 				url = "http://api.coindesk.com/v1/bpi/currentprice.json"
 				BTC = '{0:,}'.format( int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float']) )
-
-				timer=30
-				for i in range(10):
-					sleep(1)
-					if kill == 1:
-						c.release()
-						return
 				c.release()
+				timer=30
+				for i in range(30):
+					time.sleep(1)
+					if kill == 1:
+						return
+
 			else:
 				url = "http://api.coindesk.com/v1/bpi/currentprice.json"
 				c.acquire()
 				BTC = int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float'])
-				
+				c.release()
 				timer=30
-				for i in range(10):
+				for i in range(30):
 					time.sleep(1)
 					if kill == 1:
-						c.release()
 						return
-				c.release()
-
-
+				
 
 class screenctl(threading.Thread):
 	#Thread to refresh oled display
@@ -169,6 +162,7 @@ class screenctl(threading.Thread):
 				# Draw a black filled box to clear the image.
 				draw.rectangle((0,0,width,height), outline=0, fill=0)
 				if not GPIO.input(D_pin):
+					kill = 1
 					break
 				if GPIO.input(U_pin): # button is released
 					mode = mode
@@ -181,7 +175,6 @@ class screenctl(threading.Thread):
 					#Stats Mode
 					font = ImageFont.load_default()
 					# Writes text.
-					shape_width = 20
 					draw.text((x, top),	   "IP: " + str(IP),  font=font, fill=255)
 					draw.text((x, top+8),	 str(CPU), font=font, fill=255)
 					draw.text((x, top+16),	str(MemUsage),  font=font, fill=255)
@@ -214,6 +207,7 @@ class screenctl(threading.Thread):
 						return
 					time.sleep(1)
 					c.release()
+					
 		except KeyboardInterrupt: 
 			GPIO.cleanup()
 			
@@ -230,10 +224,24 @@ while True:
 	try:
 	#Keep main thread from exiting, trying to exit threads correctly...
 		time.sleep(1)
-		print "sleepin"
-	except (KeyboardInterrupt, SystemExit):
+		print "sleepin " + str(kill)
+		if kill == 1:
+			print "Bye..."
+			kill = 1
+			a.join()
+			b.join()
+			# Draw a black filled box to clear the image.
+			draw.rectangle((0,0,width,height), outline=0, fill=0)
+			disp.image(image) #rotated 180
+			disp.display()
+			break
+	except (KeyboardInterrupt, SystemExit, kill):
 		print "Bye..."
 		kill = 1
 		a.join()
 		b.join()
+		# Draw a black filled box to clear the image.
+		draw.rectangle((0,0,width,height), outline=0, fill=0)
+		disp.image(image) #rotated 180
+		disp.display()
 		break
