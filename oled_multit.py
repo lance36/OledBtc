@@ -1,30 +1,10 @@
-# Copyright (c) 2017 Adafruit Industries
-# Author: Tony DiCola & James DeVito
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
-import threading
-import time
-import datetime
+
+import psutil, sys,threading
+import time,datetime
 import Adafruit_GPIO.SPI as SPI
 import RPi.GPIO as GPIO
 import Adafruit_SSD1306
-import json, sys
+import json, urllib
 
 from PIL import Image
 from PIL import ImageDraw
@@ -96,12 +76,13 @@ font35 = ImageFont.truetype('vcr.ttf', 35)
 
 #Variables cause 2 unsynchroned threads
 flip = "0"
-mode = 0
+mode = 1
 BTC = ""
 IP = ""
 CPU = ""
 MemUsage = ""
 Disk = ""
+timer = 27 # on my system atleast?
 
 class varupdate(threading.Thread):
 	#Thread to update variables every 30 seconds
@@ -117,22 +98,30 @@ class varupdate(threading.Thread):
 		global CPU
 		global MemUsage
 		global Disk
+		global timer
 		while True:
 			if mode ==1:
+				c.acquire()
 				cmd = "hostname -I | cut -d\' \' -f1"
 				IP = subprocess.check_output(cmd, shell = True )
 				cmd = "top -bn1 | grep load | awk '{printf \"CPU Load: %.2f\", $(NF-2)}'"
-				CPU = subprocess.check_output(cmd, shell = True )
-				cmd = "free -m | awk 'NR==2{printf \"Mem: %s/%sMB %.2f%%\", $3,$2,$3*100/$2 }'"
-				MemUsage = subprocess.check_output(cmd, shell = True )
+				CPU = "Cpu: " + str(psutil.cpu_percent()) + "% "
+				Mem = psutil.virtual_memory() 
+				MemUsage = "Mem: "  + str(Mem.used >> 20) + "/" + str(Mem.total >> 20) + " " + str(Mem.percent) + "%"
 				cmd = "df -h | awk '$NF==\"/\"{printf \"Disk: %d/%dGB %s\", $3,$2,$5}'"
 				Disk = subprocess.check_output(cmd, shell = True )
-				cmd = "curl -s http://api.coindesk.com/v1/bpi/currentprice.json | python -c \"import json, sys; print(json.load(sys.stdin)['bpi']['USD']['rate'])\"|awk {'print \"BTC: \"$1'}"
-				BTC = subprocess.check_output(cmd, shell = True )
+				url = "http://api.coindesk.com/v1/bpi/currentprice.json"
+				BTC = int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float'])
+
+				c.release()
+				timer=30
 				time.sleep(30)
 			else:
-				cmd = "curl -s http://api.coindesk.com/v1/bpi/currentprice.json | python -c \"import json, sys; print(json.load(sys.stdin)['bpi']['USD']['rate'])\"| tr \".\" \" \" |awk '{ print $1}'"
-				BTC = subprocess.check_output(cmd, shell = True )
+				url = "http://api.coindesk.com/v1/bpi/currentprice.json"
+				c.acquire()
+				BTC = int(json.load(urllib.urlopen(url))['bpi']['USD']['rate_float'])
+				c.release()
+				timer=30
 				time.sleep(30)
 
 
@@ -146,8 +135,11 @@ class screenctl(threading.Thread):
 		global flip
 		global mode	 
 		global BTC
+		global timer
 		try:
 			while True:
+				c.acquire()
+				
 
 				# Draw a black filled box to clear the image.
 				draw.rectangle((0,0,width,height), outline=0, fill=0)
@@ -170,24 +162,28 @@ class screenctl(threading.Thread):
 					draw.text((x, top+24),	str(Disk),  font=font, fill=255)
 					draw.text((x, top+25),	"______________________s	   ",  font=font, fill=255)
 					draw.text((x, top+25),	"______________________	   ",  font=font, fill=255)
-					draw.text((x, top+48),	str(BTC),  font=font, fill=255)
+					draw.text((x, top+48),	"USD\BTC: "+ str(BTC),  font=font, fill=255)
+					draw.text((x+110, top+55),	str(timer),  font=font, fill=255)
+					timer = timer - 1
+
 
 					disp.image(image.rotate(180)) #rotated 180
 					disp.display()
-					time.sleep(0.1)
+					time.sleep(1)
+					c.release()
 				else:
 					#Stats Mode
-						font = ImageFont.load_default()
-						draw.text((x, top),	"USD/BTC:",  font=font, fill=255)
-						st = datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%y %H:%M:%S')
-						draw.text((x, top+51),	str(st),  font=font, fill=255)
-						draw.text((x, top+16),	str(BTC),  font=font35, fill=255)
-						font = ImageFont.load_default()
-			
-						
-						disp.image(image.rotate(180)) #rotated 180
-						disp.display()
-						time.sleep(1)
+					font = ImageFont.load_default()
+					draw.text((x, top),	"USD/BTC:",  font=font, fill=255)
+					st = datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%y %H:%M:%S')
+					draw.text((x, top+51),	str(st),  font=font, fill=255)
+					draw.text((x, top+16),	str(BTC),  font=font35, fill=255)
+					draw.text((x+110, top+55),	str(timer),  font=font, fill=255)
+					timer = timer - 1
+					disp.image(image.rotate(180)) #rotated 180
+					disp.display()
+					time.sleep(1)
+					c.release()
 		except KeyboardInterrupt: 
 			GPIO.cleanup()
 a = varupdate("varupdate")
