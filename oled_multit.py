@@ -222,29 +222,36 @@ b = screenctl("screenctl")
 # a.daemon = True
 b.start()
 a.start()
-
+def bye( display ):
+	"Program is exiting"
+	print "Bye..."
+	draw.rectangle((0,0,width,height), outline=0, fill=0)
+	disp.image(image) 
+	disp.display()
+	draw.text((x, top+16),	str("Bye!"),  font=font35, fill=255)
+	disp.image(image.rotate(180)) #rotated 180
+	disp.display()
+	time.sleep(1)
+	draw.rectangle((0,0,width,height), outline=0, fill=0)
+	disp.image(image) 
+	disp.display()
+	return
+	
 while True:
 	try:
 	#Keep main thread from exiting, trying to exit threads correctly...
 		time.sleep(1)
 		print "sleepin " + str(kill)
 		if kill == 1:
-			print "Bye..."
+			bye(disp)
 			kill = 1
 			a.join()
 			b.join()
 			# Draw a black filled box to clear the image.
-			draw.rectangle((0,0,width,height), outline=0, fill=0)
-			disp.image(image) #rotated 180
-			disp.display()
 			break
 	except (KeyboardInterrupt, SystemExit, kill):
-		print "Bye..."
+		bye(disp)
 		kill = 1
 		a.join()
 		b.join()
-		# Draw a black filled box to clear the image.
-		draw.rectangle((0,0,width,height), outline=0, fill=0)
-		disp.image(image) #rotated 180
-		disp.display()
 		break
